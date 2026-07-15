@@ -17,6 +17,8 @@
 
 Оба скилла работают одинаково: несколько параллельных агентов анализируют источник и проверяют факты друг за другом, результат складывается в один JSON-файл (`book.json` / `podcast.json`, контракт проверяется валидатором по JSON Schema), из которого детерминированный Python-скрипт собирает страницу. Текст и данные живут в JSON, поэтому страницу можно пересобирать сколько угодно раз.
 
+**Пример результата:** [живая страница](https://mldogs.github.io/skill-factory/examples/podcast-deepdive/ai-first-company/ai-first-company.html) — разбор доклада «Как построить AI-First компанию» (Алексей Остриков, 48 мин), собранный скиллом `podcast-deepdive` из YouTube-ссылки. Исходные файлы примера (страница + `podcast.json` + иллюстрации) — в [`examples/podcast-deepdive/ai-first-company/`](examples/podcast-deepdive/ai-first-company/).
+
 ## Установка
 
 ```bash
