@@ -56,15 +56,16 @@ def fetch_metadata(url):
 def fetch_subtitles(url, workdir, vid):
     """Скачать субтитры. Возвращает (path_to_vtt, kind) либо (None, None)."""
     out_tmpl = os.path.join(workdir, "%(id)s.%(ext)s")
-    # 1) сначала пробуем РУЧНЫЕ субтитры (чистые)
-    for langs in ("en,en-US,en-GB", "en.*"):
+    # 1) manual captions first (clean); prefer English, else any manual track
+    for langs in ("en,en-US,en-GB", "en.*", "all"):
         r = run_yt_dlp(["--skip-download", "--write-subs", "--sub-langs", langs,
                         "--sub-format", "vtt", "-o", out_tmpl, url])
         vtt = _find_vtt(workdir, vid)
         if vtt:
             return vtt, "manual"
-    # 2) иначе авто-субтитры (предпочитаем оригинальную дорожку en-orig)
-    for langs in ("en-orig", "en"):
+    # 2) else auto captions: the ORIGINAL spoken-language track ("*-orig") beats
+    #    any auto-translation; plain "en" is the last resort
+    for langs in (".*-orig", "en-orig", "en"):
         run_yt_dlp(["--skip-download", "--write-auto-subs", "--sub-langs", langs,
                     "--sub-format", "vtt", "-o", out_tmpl, url])
         vtt = _find_vtt(workdir, vid)
@@ -77,8 +78,8 @@ def _find_vtt(workdir, vid):
     cands = [f for f in os.listdir(workdir) if f.startswith(vid) and f.endswith(".vtt")]
     if not cands:
         return None
-    # предпочесть en-orig, затем en, затем любой
-    cands.sort(key=lambda f: (".en-orig." not in f, ".en." not in f, f))
+    # prefer the original-language track (*-orig), then en, then anything
+    cands.sort(key=lambda f: ("-orig." not in f, ".en." not in f and ".en-" not in f, f))
     return os.path.join(workdir, cands[0])
 
 
