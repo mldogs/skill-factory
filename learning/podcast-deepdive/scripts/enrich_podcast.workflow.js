@@ -8,10 +8,9 @@ let A = args || {}
 if (typeof A === 'string') { try { A = JSON.parse(A) } catch (e) { A = {} } }
 if (!A.pj) throw new Error('args.pj is required: absolute path to the target podcast.json (pass {"pj": "/abs/podcasts/<slug>/podcast.json", "ids": [...], "topic": "..."})')
 const PJ = A.pj
-const IDS = (Array.isArray(A.ids) && A.ids.length) ? A.ids : ["why-the-firm-breaks","organizational-singularity","exo-3-architecture",
-  "agents-talking-to-agents","reshaping-the-org-and-four-phases","rewrite-methodology-and-stack",
-  "the-100x-firm","what-survives-and-closing"]
-const TOPIC = A.topic || "the \"organizational singularity\" (agentic AI, Coase's law, ExO 3.0)"
+if (!Array.isArray(A.ids) || !A.ids.length) throw new Error("args.ids is required: list of section ids to process")
+const IDS = A.ids
+const TOPIC = A.topic || "the episode's core topic"
 
 phase('Enrich')
 

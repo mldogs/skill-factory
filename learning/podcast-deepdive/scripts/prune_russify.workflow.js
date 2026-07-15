@@ -12,16 +12,18 @@ let A = args || {}
 if (typeof A === 'string') { try { A = JSON.parse(A) } catch (e) { A = {} } }
 if (!A.pj) throw new Error('args.pj is required: absolute path to the target podcast.json (pass {"pj": "/abs/podcasts/<slug>/podcast.json", "ids": [...], "topic": "..."})')
 const PJ = A.pj
-const IDS = (Array.isArray(A.ids) && A.ids.length) ? A.ids : ["why-the-firm-breaks","organizational-singularity","exo-3-architecture",
-  "agents-talking-to-agents","reshaping-the-org-and-four-phases","rewrite-methodology-and-stack",
-  "the-100x-firm","what-survives-and-closing"]
-const TOPIC = A.topic || "organizational singularity (agentic AI, ExO 3.0)"
+if (!PJ) throw new Error("args.pj is required: absolute path to podcast.json")
+if (!Array.isArray(A.ids) || !A.ids.length) throw new Error("args.ids is required: list of section ids to process")
+const IDS = A.ids
+const TOPIC = A.topic || "the episode's core topic"
 
 const RULES = `ПРАВИЛА РУССИФИКАЦИИ (умеренно):
-- Оставляй В АНГЛИЙСКОМ только устоявшийся AI/eng-жаргон: agentic, workflow, AI, API, RAG, LLM, ExO, MTP, OODA, ASI/AGI, backcasting, moat(s), C-suite, ERP, data-lake, KPI, SPV.
-- Переводи на русский всё остальное: execution->исполнение, coordination->координация, transaction costs->транзакционные издержки, high-margin->высокомаржинальный, hierarchy->иерархия, headcount->штат, oversight->надзор, retool->переоснащение, и т.п.
-- КАЖДЫЙ оставшийся английский термин оборачивай разметкой [[term|короткий русский перевод (<=6 слов)]]. Пример: "это [[agentic|агентный, действует сам]] [[workflow|рабочий процесс]]".
-- Разметку ставь и для аббревиатур (AI, API, RAG, MTP). Не оборачивай имена людей/продуктов (Coase, Salim, Vercel, Dropbox).
+- Оставляй В АНГЛИЙСКОМ только устоявшийся AI/eng-жаргон: agentic, workflow, API, RAG, LLM, evals, harness, pipeline и подобные.
+- Переводи на русский всё остальное: execution->исполнение, coordination->координация, transaction costs->транзакционные издержки, hierarchy->иерархия, headcount->штат, oversight->надзор, и т.п.
+- Разметку [[term|короткий русский перевод (<=6 слов)]] ставь ТОЛЬКО на ПЕРВОЕ вхождение термина внутри концепта (первое по порядку: tldr_ru -> explanation_ru -> key_points_ru); все последующие вхождения оставляй голым термином без разметки. Пример: "…[[harness|каркас-обвязка агента]] делает X. Дальше harness делает Y."
+- НЕ размечай общеизвестные аббревиатуры и слова, перевод которых очевиден любому читателю: AI, IT, CEO, CTO, HR, PR, URL, PDF. Не оборачивай имена людей/продуктов (Vercel, Dropbox, Claude Code).
+- Глосса — короткая справка в именительном падеже; сам термин в тексте должен читаться грамматично в своём предложении.
+- Если исходная речь эпизода уже русская, руссификация почти не нужна: не переписывай естественный русский текст, только расставь разметку на первые вхождения англо-жаргона.
 - Смысл и факты сохраняй точно; не добавляй нового.`
 
 const CONCEPT_PROPS = {

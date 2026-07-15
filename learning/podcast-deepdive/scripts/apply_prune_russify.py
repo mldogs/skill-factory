@@ -18,11 +18,48 @@ stdlib-only. Делает:
 import argparse
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from assemble_podcast import validate  # noqa: E402
 from podcast_io import atomic_write_json  # noqa: E402
+
+# ---------- [[term|gloss]] moderation ----------
+
+_MARK = re.compile(r"\[\[([^|\]]+)\|([^\]]+)\]\]")
+
+# ubiquitous terms that never need a hover-gloss
+STOP_TERMS = {"ai", "it", "ceo", "cto", "coo", "cfo", "hr", "pr", "url", "pdf",
+              "faq", "ok", "id", "pc", "www"}
+
+
+def moderate_markup(texts):
+    """Unwrap [[term|gloss]] for stop-list terms and for every occurrence of a
+    term after its first one, across the given texts in display order.
+    Mutates nothing; returns the new list of texts."""
+    seen = set()
+
+    def sub(m):
+        term = m.group(1)
+        key = term.casefold().strip()
+        if key in STOP_TERMS or key in seen:
+            return term
+        seen.add(key)
+        return m.group(0)
+
+    return [_MARK.sub(sub, t) if isinstance(t, str) else t for t in texts]
+
+
+def moderate_concept(c):
+    kp = c.get("key_points_ru") or []
+    fields = [c.get("tldr_ru"), c.get("explanation_ru")] + list(kp) + [c.get("analogy_ru")]
+    out = moderate_markup(fields)
+    c["tldr_ru"], c["explanation_ru"] = out[0], out[1]
+    if kp:
+        c["key_points_ru"] = out[2:2 + len(kp)]
+    if c.get("analogy_ru") is not None:
+        c["analogy_ru"] = out[-1]
 
 
 def main():
@@ -70,6 +107,7 @@ def main():
                 c["tldr_ru"] = r["tldr_ru"]
                 c["explanation_ru"] = r["explanation_ru"]
                 c["key_points_ru"] = r["key_points_ru"]
+            moderate_concept(c)
             keep_concepts.append(c)
             kept_ids.add(c["id"])
         if keep_concepts:
@@ -93,6 +131,7 @@ def main():
             continue
         if ng:
             g["definition_ru"] = ng["definition_ru"]
+        g["definition_ru"] = moderate_markup([g.get("definition_ru")])[0]
         out_gloss.append(g)
     pj["glossary"] = out_gloss
 

@@ -26,10 +26,20 @@ from podcast_io import atomic_write_json  # noqa: E402
 
 # ---------- normalization / quote grounding ----------
 
+def _stem(t):
+    # crude morphology tolerance for inflected languages: long Cyrillic tokens
+    # are compared by prefix, so «кусочки»/«кусочков» count as the same token
+    if len(t) > 5 and re.search(r"[а-яё]", t):
+        return t[:5]
+    return t
+
+
 def norm_tokens(s):
-    s = (s or "").lower()
-    s = re.sub(r"[^a-z0-9'\s]", " ", s)
-    return s.split()
+    # Unicode-aware: keeps any letters/digits (the old [a-z0-9] filter deleted
+    # Cyrillic outright, so every Russian quote failed grounding)
+    s = (s or "").lower().replace("ё", "е")
+    s = re.sub(r"[^\w'\s]", " ", s)
+    return [_stem(t) for t in s.split()]
 
 
 def coverage(quote, transcript_tokens):
