@@ -309,13 +309,14 @@ def v_funnel(params, c):
 
 
 def v_timeline(params, c):
+    # vertical layout: labels of any length wrap next to their dot and can
+    # never collide (the horizontal variant broke on long Russian phrases)
     labs = _labels(params, 4, [])
     labs = [x for x in labs if x] or ["now", "→", "future"]
-    n = len(labs)
-    dots = "".join(
-        '<div class="v-tl-pt" style="--p:%d%%"><span class="v-tl-dot"></span><span class="v-tl-l">%s</span></div>'
-        % (int(i * 100 / max(1, n - 1)), e(x)) for i, x in enumerate(labs))
-    return '<div class="v-tl"><div class="v-tl-axis"></div>%s</div>' % dots
+    rows = "".join(
+        '<div class="v-tl-row"><span class="v-tl-dot"></span><span class="v-tl-l">%s</span></div>'
+        % e(x) for x in labs)
+    return '<div class="v-tl">%s</div>' % rows
 
 
 def v_many_to_one(params, c):
@@ -608,9 +609,9 @@ h2{font-size:23px;margin:34px 0 14px;padding-bottom:6px;border-bottom:1px solid 
 ul.kp{margin:0 0 10px;padding:0;list-style:none}
 ul.kp li{position:relative;padding-left:20px;margin:5px 0;font-size:14px}
 ul.kp li::before{content:"";position:absolute;left:4px;top:8px;width:6px;height:6px;border-radius:50%;background:var(--acc2)}
-.concept.has-img{grid-template-columns:210px 1fr}
-.concept.has-img .v-img{max-width:210px}
-@media(max-width:620px){.concept.has-img{grid-template-columns:1fr}}
+.concept.has-img{grid-template-columns:1fr}
+.concept.has-img .concept-viz{width:100%}
+.concept.has-img .v-img{max-width:min(640px,100%);border-radius:12px}
 .who{font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:8px;vertical-align:middle}
 .who-host{background:color-mix(in srgb,var(--host) 18%,transparent);color:var(--host)}
 .who-guest{background:color-mix(in srgb,var(--guest) 18%,transparent);color:var(--guest)}
@@ -649,7 +650,7 @@ ul.kp li::before{content:"";position:absolute;left:4px;top:8px;width:6px;height:
 .v-tug{display:flex;align-items:center;gap:8px;width:100%;justify-content:center;font-size:12px}.v-tug-a,.v-tug-b{background:var(--card);border:1px solid var(--line);border-radius:7px;padding:5px 8px}.v-tug-a{border-color:var(--host)}.v-tug-b{border-color:var(--guest)}.v-tug-rope{color:var(--mut)}
 .v-two{display:flex;align-items:center;gap:6px;font-size:12px;justify-content:center}.v-two-old{background:color-mix(in srgb,var(--guest) 14%,var(--card));border-radius:7px;padding:5px 8px}.v-two-new{background:color-mix(in srgb,var(--host) 14%,var(--card));border-radius:7px;padding:5px 8px}.v-two-arrow{color:var(--mut)}
 .v-funnel{display:flex;flex-direction:column;gap:4px;align-items:center;width:100%}.v-funnel-r{width:var(--w);background:color-mix(in srgb,var(--acc) 22%,var(--card));border:1px solid var(--line);border-radius:6px;padding:5px;font-size:11px;text-align:center}
-.v-tl{position:relative;width:100%;padding:8px 0 22px}.v-tl-axis{height:3px;background:var(--line);border-radius:3px}.v-tl-pt{position:absolute;top:2px;left:var(--p);transform:translateX(-50%);text-align:center}.v-tl-dot{display:block;width:11px;height:11px;border-radius:50%;background:var(--acc);margin:0 auto}.v-tl-l{font-size:10px;color:var(--mut)}
+.v-tl{position:relative;width:100%;display:flex;flex-direction:column;gap:13px;padding:4px 0 4px 2px}.v-tl:before{content:"";position:absolute;left:7px;top:10px;bottom:10px;width:3px;background:var(--line);border-radius:3px}.v-tl-row{display:flex;gap:10px;align-items:flex-start;position:relative}.v-tl-dot{flex:0 0 11px;width:11px;height:11px;border-radius:50%;background:var(--acc);margin-top:3px}.v-tl-l{font-size:11px;line-height:1.4;color:var(--mut);text-align:left;min-width:0;overflow-wrap:anywhere}
 .m2o-l{stroke:var(--line);stroke-width:2}.m2o-s{fill:var(--acc2)}.m2o-hub{fill:var(--acc)}.m2o-t{fill:#fff;text-anchor:middle;font-size:13px;font-weight:700}
 .v-split{display:flex;gap:6px;width:100%}.v-split-c{flex:1;background:var(--card);border:1px solid var(--line);border-radius:7px;padding:6px;font-size:11px;text-align:center}
 .g-bg{fill:none;stroke:var(--line);stroke-width:8}.g-fg{fill:none;stroke:var(--acc);stroke-width:8}.g-hub{fill:var(--fg)}.g-needle{stroke:var(--fg);stroke-width:2}
