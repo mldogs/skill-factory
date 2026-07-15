@@ -1,7 +1,7 @@
 ---
 name: book-deepdive
-description: Turns a whole book (any design/engineering/non-fiction title) into a fact-checked, bilingual (RU/EN), interactive, self-contained HTML deep-dive — runs a multi-agent analysis workflow (structure → per-theme deep analysis → adversarial verification → synthesis), writes per-theme source notes + a single book.json source of truth, translates RU↔EN, generates a few key illustrations, and renders a standalone page with inline-SVG/CSS concept visuals, a searchable glossary and active-recall Q&A. Use when the user wants to разобрать / сделать разбор книги, "book deep-dive", or упаковать/собрать разбор книги.
-argument-hint: "<название книги> [автор] [год]"
+description: Turns a whole book (any design/engineering/non-fiction title) into a fact-checked, bilingual (RU/EN), interactive, self-contained HTML deep-dive — runs a multi-agent analysis workflow (structure → per-theme deep analysis → adversarial verification → synthesis), writes per-theme source notes + a single book.json source of truth, translates RU↔EN, generates a few key illustrations, and renders a standalone page with inline-SVG/CSS concept visuals, a searchable glossary and active-recall Q&A. Use when the user wants a book deep-dive, to analyze/break down a whole book, or to package a book into an interactive study page.
+argument-hint: "<book title> [author] [year]"
 allowed-tools: Read, Write, Edit, Bash(python3 *), Workflow, Agent
 ---
 
@@ -16,7 +16,7 @@ Produce a complete, self-contained book deep-dive under `books/<slug>/` (relativ
 ```
 books/<slug>/
   book.json            ← SOURCE OF TRUTH: book meta · parts · sections[].concepts[] · glossary · qa_seeds
-  sources/*.md         ← per-theme deep-dive notes ("исходные документы")
+  sources/*.md         ← per-theme deep-dive notes (grounding source documents)
   i18n/*.json          ← EN translations (one per section + _global for summary/glossary/qa)
   assets/*.png         ← cover + a few key illustrations (cached; flat editorial vector)
   <slug>.html          ← generated interactive page (open by double-click)
@@ -38,7 +38,7 @@ It does Map (authoritative parts/chapters + 6–9 teachable themes) → Analyze 
 
 From its result (`result.map`, `result.theme_docs`, `result.synth`) **write the files yourself** (the workflow can't touch disk):
 - `sources/<theme_id>.md` ← each `theme_docs[].markdown_ru` (prepend an H1 + a one-line source citation).
-- `book.json` ← merge `map.book` + `map.parts` + `synth` (`summary_ru`, `sections`, `glossary`, `qa_seeds`). Add `book.cover_alt_ru`, and on each section a `source_docs: ["<theme_id>.md", …]` list. Keep all `id`s slug-style and stable. Validate against the real schema (не только синтаксис): `uv run ${CLAUDE_SKILL_DIR}/scripts/validate_book.py books/<slug>/book.json` — run it after every edit of `book.json` and before `build_page.py`.
+- `book.json` ← merge `map.book` + `map.parts` + `synth` (`summary_ru`, `sections`, `glossary`, `qa_seeds`). Add `book.cover_alt_ru`, and on each section a `source_docs: ["<theme_id>.md", …]` list. Keep all `id`s slug-style and stable. Validate against the real schema (not just syntax): `uv run ${CLAUDE_SKILL_DIR}/scripts/validate_book.py books/<slug>/book.json` — run it after every edit of `book.json` and before `build_page.py`.
 
 See [reference/book.schema.json](reference/book.schema.json) for the exact shape and [reference/viz-components.md](reference/viz-components.md) for the visual component each concept may use.
 
