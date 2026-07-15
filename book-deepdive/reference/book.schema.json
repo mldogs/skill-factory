@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://deepdive.local/schemas/book.json",
+  "title": "Book Deep-Dive Model",
+  "description": "Single source of truth for one book deep-dive, written once by the book-deepdive analysis stage and consumed by build_page.py. Lives at books/<slug>/book.json. RU is primary; EN comes from i18n/*.json at build time.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "book", "summary_ru", "sections", "glossary", "qa_seeds"],
+  "properties": {
+    "schema_version": { "type": "string", "description": "MAJOR.MINOR of this schema, e.g. 'book-1.0'." },
+    "book": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title_en", "author"],
+      "properties": {
+        "title_en": { "type": "string" },
+        "subtitle_en": { "type": ["string", "null"] },
+        "author": { "type": "string", "description": "Full author name; the builder derives 'F. Lastname' for the navtag." },
+        "year": { "type": ["integer", "null"] },
+        "publisher": { "type": ["string", "null"] },
+        "cover_alt_ru": { "type": ["string", "null"], "description": "Alt text for assets/cover.png (hero + hub thumbnail)." }
+      }
+    },
+    "parts": {
+      "type": "array",
+      "description": "The book's own parts (for the 'structure' strip). Optional but recommended.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["number", "title_en", "title_ru"],
+        "properties": {
+          "number": { "type": "integer" },
+          "title_en": { "type": "string" },
+          "title_ru": { "type": "string" },
+          "chapters": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "summary_ru": { "type": "string", "description": "3-5 sentence RU thesis of the book." },
+    "sections": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Teaching sections (≈ one per theme/part), in presentation order.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title_en", "title_ru", "intro_ru", "concepts"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "Stable slug; #sec-<id> anchor; i18n/<id>.json key." },
+          "title_en": { "type": "string" },
+          "title_ru": { "type": "string" },
+          "intro_ru": { "type": "string", "description": "2-3 sentence RU intro to the section." },
+          "source_docs": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Filenames under sources/ for this section's deep-dive notes (linked from the section header)."
+          },
+          "concepts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "term_en", "explanation_ru", "visual"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^[a-z0-9_-]+$", "description": "Stable slug, unique in the book. Prefer kebab-case; underscore допустим (легаси-книги)." },
+                "term_en": { "type": "string", "description": "Author's canonical term (the card heading)." },
+                "explanation_ru": { "type": "string", "description": "Self-contained RU explanation (~70-140 words); English terms inline; weaves meaning + author's framing + a line of modern relevance." },
+                "analogy_ru": { "type": ["string", "null"], "description": "Optional memorable RU analogy (rendered as a callout)." },
+                "quote_en": { "type": ["string", "null"], "description": "ONLY a verified/high-confidence quotation; else null. Audited adversarially before publishing." },
+                "visual": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["type", "title_ru"],
+                  "description": "How build_page.py renders the concept's figure.",
+                  "properties": {
+                    "type": { "type": "string", "enum": ["css", "svg", "image"], "description": "image → use the cached illustration if present, else fall back to `component`." },
+                    "component": { "type": ["string", "null"], "description": "Name of an inline-SVG/CSS component (see reference/viz-components.md). Required for css/svg; recommended as fallback even for image." },
+                    "params": { "type": ["object", "null"], "description": "Component params, e.g. {variant:'descend'} or {left,right,left_good,right_good,cap}." },
+                    "title_ru": { "type": "string", "description": "Figure caption (RU)." },
+                    "alt_ru": { "type": ["string", "null"], "description": "RU alt text (used on <img> for image visuals)." },
+                    "image_prompt": { "type": ["string", "null"], "description": "For image: text-to-image SUBJECT only (no style words)." },
+                    "cache_filename": { "type": ["string", "null"], "pattern": "^assets/[a-z0-9._-]+\\.(png|jpg|jpeg|webp|svg)$", "description": "For image: stable on-disk cache path under the book dir." },
+                    "spec": { "type": ["string", "null"], "description": "Авторская спецификация замысла визуала (что показать/анимировать). Не читается build_page.py; сохраняется как design intent для перегенерации." }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "glossary": {
+      "type": "array",
+      "description": "Key English terms → RU definitions. Stays on the book page (not merged into the course glossary).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["term_en", "definition_ru"],
+        "properties": {
+          "term_en": { "type": "string" },
+          "definition_ru": { "type": "string" },
+          "section_id": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "qa_seeds": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Active-recall questions for the on-page <details> Q&A.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "question_ru", "expected_answer_points", "difficulty"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "question_ru": { "type": "string" },
+          "expected_answer_points": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "RU rubric points." },
+          "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
+          "section_id": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "source_docs_dir": { "type": "string", "description": "Optional; informational (default 'sources/')." }
+  }
+}

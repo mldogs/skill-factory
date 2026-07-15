@@ -1,0 +1,176 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://deepdive.local/schemas/podcast.json",
+  "title": "podcast.json — источник истины для разбора одного YouTube-эпизода",
+  "description": "Contract for a single podcast/article deep-dive dataset (episode, speakers, sections, concepts, debates, glossary, Q&A).",
+  "type": "object",
+  "required": ["schema_version", "episode", "speakers", "sections", "qa_seeds"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "podcast-1.0" },
+
+    "episode": {
+      "type": "object",
+      "required": ["title_en", "title_ru", "show", "youtube_id", "url", "summary_ru"],
+      "additionalProperties": false,
+      "properties": {
+        "title_en": { "type": "string" },
+        "title_ru": { "type": "string" },
+        "show": { "type": "string", "description": "Название подкаста/канала (как author у книги)" },
+        "episode_no": { "type": ["string", "integer", "null"] },
+        "date": { "type": ["string", "null"], "description": "ISO или YYYYMMDD" },
+        "youtube_id": { "type": "string" },
+        "url": { "type": "string" },
+        "duration_seconds": { "type": ["integer", "null"] },
+        "duration_hhmmss": { "type": ["string", "null"] },
+        "captions_kind": { "enum": ["manual", "auto", null] },
+        "summary_ru": { "type": "string", "description": "3-5 предложений по-русски" },
+        "cover_alt_ru": { "type": ["string", "null"] }
+      }
+    },
+
+    "speakers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "role", "bio_ru"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "name": { "type": "string" },
+          "role": { "enum": ["host", "guest"] },
+          "bio_ru": { "type": "string", "description": "1-2 предложения: кто это" }
+        }
+      }
+    },
+
+    "chapters": {
+      "type": "array",
+      "description": "Опционально: тайм-лайн глав (из YouTube-глав либо выведенный агентом)",
+      "items": {
+        "type": "object",
+        "required": ["t_seconds", "title_en", "title_ru"],
+        "additionalProperties": false,
+        "properties": {
+          "t_seconds": { "type": "integer", "minimum": 0 },
+          "title_en": { "type": "string" },
+          "title_ru": { "type": "string" }
+        }
+      }
+    },
+
+    "sections": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "title_en", "title_ru", "intro_ru", "concepts"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "title_en": { "type": "string" },
+          "title_ru": { "type": "string" },
+          "intro_ru": { "type": "string", "description": "2-3 предложения" },
+          "t_seconds": { "type": ["integer", "null"], "description": "deep-link: начало темы в видео" },
+          "source_docs": { "type": "array", "items": { "type": "string" } },
+          "concepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "term_en", "tldr_ru", "explanation_ru", "key_points_ru", "visual"],
+              "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+                "term_en": { "type": "string" },
+                "tldr_ru": { "type": "string", "description": "тезис одной фразой (<=140 симв.) — что усвоить" },
+                "explanation_ru": { "type": "string", "description": "лид-абзац, 50-90 слов" },
+                "key_points_ru": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 4, "description": "2-4 коротких тезиса-буллета" },
+                "analogy_ru": { "type": ["string", "null"], "description": "для image-концептов — подпись к картинке" },
+                "speaker_id": { "type": ["string", "null"], "description": "кто ввёл идею (из speakers[].id)" },
+                "quote_en": { "type": ["string", "null"], "description": "только подтверждённая grep-ом по транскрипту" },
+                "quote_provenance": { "enum": ["manual", "auto-cleaned", null] },
+                "visual": {
+                  "type": "object",
+                  "required": ["type", "title_ru"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": { "enum": ["css", "svg", "image"] },
+                    "title_ru": { "type": "string" },
+                    "alt_ru": { "type": ["string", "null"] },
+                    "component": { "type": ["string", "null"], "description": "имя viz-компонента (для css/svg)" },
+                    "params": { "type": ["object", "null"] },
+                    "image_prompt": { "type": ["string", "null"], "description": "ТОЛЬКО сюжет, без стиля" },
+                    "cache_filename": { "type": ["string", "null"], "pattern": "^assets/[a-z0-9._-]+\\.(png|jpg|jpeg|webp|svg)$" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "debates": {
+      "type": "array",
+      "description": "Опционально и часто разрежено: явные точки несогласия/спора между спикерами",
+      "items": {
+        "type": "object",
+        "required": ["id", "topic_ru", "positions"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "topic_ru": { "type": "string" },
+          "section_id": { "type": ["string", "null"] },
+          "t_seconds": { "type": ["integer", "null"] },
+          "positions": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "object",
+              "required": ["speaker_id", "claim_ru"],
+              "additionalProperties": false,
+              "properties": {
+                "speaker_id": { "type": "string" },
+                "claim_ru": { "type": "string" },
+                "quote_en": { "type": ["string", "null"] }
+              }
+            }
+          },
+          "resolution_ru": { "type": ["string", "null"], "description": "к чему пришли / осталось открытым" }
+        }
+      }
+    },
+
+    "glossary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["term_en", "definition_ru"],
+        "additionalProperties": false,
+        "properties": {
+          "term_en": { "type": "string" },
+          "definition_ru": { "type": "string" },
+          "section_id": { "type": ["string", "null"] }
+        }
+      }
+    },
+
+    "qa_seeds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "question_ru", "expected_answer_points", "difficulty"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "question_ru": { "type": "string" },
+          "expected_answer_points": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "difficulty": { "enum": ["easy", "medium", "hard"] },
+          "section_id": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}
