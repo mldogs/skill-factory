@@ -17,10 +17,23 @@ const SEED = A.seed
 
 // Компоненты визуалов, реализованные в build_page.py (агент выбирает из них; иначе type:image для метафоры)
 const COMPONENTS = [
-  'define (карточка-определение)', 'layers (вертикальный стек слоёв)', 'cycle (замкнутый цикл/петля)',
-  'steps (нумерованные шаги/фазы)', 'tug (противопоставление двух сил)', 'two_targets (старое vs новое)',
-  'funnel (воронка/сужение)', 'timeline (горизонтальная шкала времени)', 'many_to_one (много→один, оркестратор)',
-  'split (две колонки)', 'gauge (шкала/индикатор)',
+  'define (карточка-определение)', 'layers (вертикальный стек слоёв)',
+  'cycle (замкнутый цикл; params {nodes:["шаг1","шаг2",...]} до 6 подписанных узлов)',
+  'steps (нумерованные шаги/фазы; params {labels})', 'tug (противопоставление двух сил; params {labels:[a,b]})',
+  'two_targets (старое vs новое; params {labels:[a,b]})',
+  'funnel (воронка/сужение, до 5 ступеней; params {labels})',
+  'timeline (вертикальная шкала: точка + подпись любой длины; params {labels} до 6)',
+  'many_to_one (много→один, оркестратор)',
+  'split (две колонки; либо params {labels:[a,b]}, либо rich: {left_title,left_items:[...],right_title,right_items:[...]})',
+  'gauge (спидометр; params {value:0..1 или value+max, left:"подпись слева", right:"подпись справа"} — value ОБЯЗАТЕЛЕН)',
+  'flow (цепочка 2-4 боксов со стрелками; params {steps:["a","b","c"]})',
+  'stack (2-4 слоя, один подсвечен; params {layers:[...], hot:index})',
+  'bars (2-4 столбца сравнения; params {items:[{label,value:0..1,good:true|false}]})',
+  'venn (пересечение двух множеств; params {left,right,mid})',
+  'orbit (ядро + спутники; params {center, sats:[до 5]})',
+  'shield (ядро под дугами защиты; params {core, rings:[до 3]})',
+  'matrix2 (квадрант 2×2; params {x_left,x_right,y_low,y_high, mark:1..4 = TL/TR/BL/BR})',
+  'loop_gate (цикл через ворота-чекпойнт; params {loop, gate})',
   'debate (ПОДКАСТ: тезис↔контртезис со спикерами)', 'speaker_roster (ПОДКАСТ: участники)',
   'chapter_timeline (ПОДКАСТ: тайм-лайн глав)'
 ]
@@ -129,7 +142,7 @@ ${ASR}
 - analogy_ru: бытовая аналогия, если уместна (иначе null).
 - speaker_id: кто это ввёл — id из ростера выше, либо null если неясно.
 - quote_en: КОРОТКАЯ (<=25 слов) подтверждающая фраза из транскрипта этого окна, можно мягко почистить ASR (provenance="auto-cleaned"). Если нет хорошей — null.
-- visual: выбери component из списка [${COMP_LIST}] и type "css"/"svg"; либо для МЕТАФОРЫ type:"image" + image_prompt (ТОЛЬКО сюжет, без стиля) + cache_filename "assets/<slug>.png". title_ru обязателен. params — по желанию (напр. {labels:[...]}).
+- visual: выбери component из списка [${COMP_LIST}] и type "css"/"svg"; либо для МЕТАФОРЫ type:"image" + image_prompt (ТОЛЬКО сюжет, без стиля) + cache_filename "assets/<slug>.png". title_ru обязателен. params заполняй ТОЧНО по контракту компонента из списка (ключи в скобках); ключи вне контракта игнорируются рендерером. Подписи в params — короткие (2-4 слова), длинные формулировки неси в title_ru/tldr.
 
 intro_ru: 2-3 предложения, вводка к секции по-русски.
 

@@ -242,6 +242,8 @@ def article_network_visual():
 
 # ---------- inline SVG/CSS visual components ----------
 # Подписи языко-нейтральны (коротко/цифрами); смысл несёт двуязычный caption.
+# SVG-компоненты используют общий помощник переноса (_wrap/_txtml): SVG <text>
+# сам не переносится, поэтому любая подпись длиннее maxch режется на tspan-ы.
 
 def _labels(params, n, default):
     p = (params or {}).get("labels")
@@ -252,6 +254,39 @@ def _labels(params, n, default):
     while len(out) < n:
         out.append("")
     return out
+
+
+def _svg(body, vb="0 0 320 168"):
+    return '<svg viewBox="%s" class="viz vz" role="img" aria-hidden="true">%s</svg>' % (vb, body)
+
+
+def _txt(x, y, s, cls="lbl", anchor="middle"):
+    return '<text x="%s" y="%s" text-anchor="%s" class="%s">%s</text>' % (x, y, anchor, cls, e(str(s)))
+
+
+def _wrap(s, maxch):
+    """Greedy word-wrap into <=3 short lines (SVG <text> never wraps itself)."""
+    words, lines, cur = (s or "").split(), [], ""
+    for w in words:
+        if cur and len(cur) + 1 + len(w) > maxch:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = (cur + " " + w).strip()
+    if cur:
+        lines.append(cur)
+    return lines[:3]
+
+
+def _txtml(x, y, s, maxch=16, cls="lbl", anchor="middle", lh=12):
+    """Multi-line _txt: wraps long labels into tspans, block centred on y."""
+    lines = _wrap(str(s), maxch)
+    if len(lines) <= 1:
+        return _txt(x, y, s, cls=cls, anchor=anchor)
+    y0 = y - (len(lines) - 1) * lh // 2
+    spans = "".join('<tspan x="%s" y="%s">%s</tspan>' % (x, y0 + i * lh, e(t))
+                    for i, t in enumerate(lines))
+    return '<text text-anchor="%s" class="%s">%s</text>' % (anchor, cls, spans)
 
 
 def v_define(params, c):
@@ -268,14 +303,27 @@ def v_layers(params, c):
 
 
 def v_cycle(params, c):
-    labs = _labels(params, 4, ["1", "2", "3", "4"])
-    pts = [(60, 12), (108, 60), (60, 108), (12, 60)]
-    nodes = "".join(
-        '<circle cx="%d" cy="%d" r="13" class="cyc-n"/><text x="%d" y="%d" class="cyc-t">%s</text>'
-        % (x, y, x, y + 4, e(str(i + 1))) for i, (x, y) in enumerate(pts))
-    return ('<svg viewBox="0 0 120 120" class="viz"><defs><marker id="ah" markerWidth="6" markerHeight="6" '
-            'refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" class="cyc-ah"/></marker></defs>'
-            '<circle cx="60" cy="60" r="40" class="cyc-ring" marker-end="url(#ah)"/>%s</svg>' % nodes)
+    # labelled loop: params.nodes (или labels) подписывают узлы вокруг кольца;
+    # длинные подписи переносятся и растут наружу от кольца, не пересекая его
+    import math
+    p = params or {}
+    labs = [str(x) for x in (p.get("nodes") or p.get("labels") or []) if x][:6]
+    cx, cy, r = 180, 100, 46
+    body = ('<circle cx="180" cy="100" r="46" class="loopring"/>'
+            '<path d="M180,54 A46,46 0 1 1 140,122" class="loopdash"/>'
+            '<path d="M144,112 l-6,12 l13,-2" class="arrhead"/>')
+    ring = labs if labs else ["", "", "", ""]
+    n = max(len(ring), 1)
+    for i, lab in enumerate(ring):
+        a = math.radians(-90 + i * 360.0 / n)
+        c_, s_ = math.cos(a), math.sin(a)
+        x, y = cx + r * c_, cy + r * s_
+        body += '<circle cx="%.1f" cy="%.1f" r="7" class="node"/>' % (x, y)
+        if lab:
+            lx, ly = cx + 66 * c_, cy + 66 * s_ + 4
+            anchor = "start" if c_ > 0.35 else ("end" if c_ < -0.35 else "middle")
+            body += _txtml(round(lx, 1), round(ly, 1), lab, maxch=16, anchor=anchor, lh=11)
+    return _svg(body, vb="0 0 360 200")
 
 
 def v_steps(params, c):
@@ -302,16 +350,19 @@ def v_two_targets(params, c):
 
 
 def v_funnel(params, c):
-    labs = _labels(params, 3, ["", "", ""])
+    # до 5 ступеней; ширина сужается к минимуму 40%, текст переносится (HTML)
+    labs = [x for x in _labels(params, 5, ["", "", ""]) if x] or ["", "", ""]
+    n = len(labs)
+    step = 60.0 / max(1, n - 1)
     rows = "".join('<div class="v-funnel-r" style="--w:%d%%">%s</div>'
-                   % (100 - i * 28, e(x)) for i, x in enumerate(labs))
+                   % (round(100 - i * step), e(x)) for i, x in enumerate(labs))
     return '<div class="v-funnel">%s</div>' % rows
 
 
 def v_timeline(params, c):
-    # vertical layout: labels of any length wrap next to their dot and can
-    # never collide (the horizontal variant broke on long Russian phrases)
-    labs = _labels(params, 4, [])
+    # vertical layout: подписи любой длины переносятся рядом со своей точкой
+    # и не могут столкнуться (горизонтальный вариант ломался на длинных фразах)
+    labs = _labels(params, 6, [])
     labs = [x for x in labs if x] or ["now", "→", "future"]
     rows = "".join(
         '<div class="v-tl-row"><span class="v-tl-dot"></span><span class="v-tl-l">%s</span></div>'
@@ -332,21 +383,204 @@ def v_many_to_one(params, c):
 
 
 def v_split(params, c):
+    # два режима: rich (left_title/left_items + right_title/right_items) или
+    # простая пара labels; HTML — текст любой длины переносится сам
+    p = params or {}
+    if p.get("left_items") or p.get("right_items"):
+        def col(title, items, side):
+            lis = "".join('<li>%s</li>' % e(str(x)) for x in (items or []))
+            t = '<div class="v-split-t">%s</div>' % e(str(title)) if title else ""
+            return '<div class="v-split-c v-split-%s">%s<ul>%s</ul></div>' % (side, t, lis)
+        return ('<div class="v-split">%s%s</div>'
+                % (col(p.get("left_title"), p.get("left_items"), "l"),
+                   col(p.get("right_title"), p.get("right_items"), "r")))
     a, b = _labels(params, 2, ["", ""])
     return ('<div class="v-split"><div class="v-split-c">%s</div>'
             '<div class="v-split-c">%s</div></div>' % (e(a), e(b)))
 
 
 def v_gauge(params, c):
-    return ('<svg viewBox="0 0 120 70" class="viz"><path d="M10,60 A50,50 0 0,1 110,60" class="g-bg"/>'
-            '<path d="M10,60 A50,50 0 0,1 95,28" class="g-fg"/>'
-            '<circle cx="60" cy="60" r="4" class="g-hub"/><line x1="60" y1="60" x2="92" y2="32" class="g-needle"/></svg>')
+    # value-driven: дуга заполнения и стрелка считаются из ОДНОГО угла и всегда
+    # согласованы (старые фиксированные координаты расходились при увеличении)
+    import math
+    p = params or {}
+    try:
+        val = float(p.get("value"))
+    except (TypeError, ValueError):
+        val = 0.62
+    if val > 1:  # допускаем value в единицах params.max (например 70 из 100)
+        try:
+            mx = float(p.get("max") or 100)
+        except (TypeError, ValueError):
+            mx = 100
+        val = val / (mx if mx >= val else 100)
+    val = min(0.95, max(0.05, val))
+    cx, cy, r = 160, 130, 120
+    ang = math.pi * (1 - val)
+    ex, ey = cx + r * math.cos(ang), cy - r * math.sin(ang)
+    nx, ny = cx + (r - 22) * math.cos(ang), cy - (r - 22) * math.sin(ang)
+    body = ('<path d="M40,130 A120,120 0 0 1 280,130" class="gaugebg"/>'
+            '<path d="M40,130 A120,120 0 0 1 %.1f,%.1f" class="gaugefill"/>'
+            '<line x1="160" y1="130" x2="%.1f" y2="%.1f" class="needle"/>'
+            '<circle cx="160" cy="130" r="7" class="pivot"/>') % (ex, ey, nx, ny)
+    body += (_txtml(16, 150, p.get("left", ""), maxch=18, anchor="start")
+             + _txtml(304, 150, p.get("right", ""), maxch=18, anchor="end"))
+    return _svg(body, vb="0 0 320 162")
+
+
+def v_flow(params, c):
+    # горизонтальная цепочка 2–4 боксов со стрелками; ширины подгоняются под текст
+    p = params or {}
+    steps = [str(x) for x in (p.get("steps") or p.get("labels") or ["in", "process", "out"]) if x][:4]
+    widths = [max(56, 7 * len(t) + 16) for t in steps]
+    gap = 26
+    total = sum(widths) + gap * (len(widths) - 1)
+    W = max(320, total + 24)
+    x0 = (W - total) // 2
+    body = ""
+    for i, (t, w) in enumerate(zip(steps, widths)):
+        body += '<rect x="%d" y="38" width="%d" height="30" rx="7" class="box"/>' % (x0, w)
+        body += _txt(x0 + w // 2, 58, t)
+        if i < len(steps) - 1:
+            ax = x0 + w
+            body += ('<line x1="%d" y1="53" x2="%d" y2="53" class="edge"/>'
+                     '<path d="M%d,53 l-7,-4 v8 Z" class="arrowh"/>') % (ax + 4, ax + gap - 4, ax + gap - 4)
+        x0 += w + gap
+    return _svg(body, vb="0 0 %d 106" % W)
+
+
+def v_stack(params, c):
+    # 2–4 слоя; params.hot (index) подсвечивает один
+    p = params or {}
+    layers = [str(x) for x in (p.get("layers") or p.get("labels") or ["top", "middle", "base"]) if x][:4]
+    hot = p.get("hot", -1)
+    n = len(layers)
+    H = 24 + n * 38 + 6
+    body = ""
+    for i, t in enumerate(layers):
+        y = 18 + i * 38
+        cls = "box hot" if i == hot else "box"
+        body += '<rect x="60" y="%d" width="200" height="30" rx="7" class="%s"/>' % (y, cls)
+        body += _txtml(160, y + 20, t, maxch=26, lh=11)
+    return _svg(body, vb="0 0 320 %d" % H)
+
+
+def v_bars(params, c):
+    # 2–4 подписанных столбца, value 0..1, флаг good красит; шаг между столбцами
+    # и ширина viewBox выводятся из самой длинной строки подписи — подписи не
+    # сталкиваются и не режутся краем
+    p = params or {}
+    items = (p.get("items") or [{"label": "a", "value": 0.4}, {"label": "b", "value": 0.8}])[:4]
+    n = len(items)
+    wrapped = [_wrap(str(it.get("label", "")), 12) for it in items]
+    maxline = max((len(ln) for ls in wrapped for ln in ls), default=4)
+    pitch = max(92, int(6.4 * maxline) + 12)
+    bw = 54
+    total = n * pitch
+    W = max(320, total + 24)
+    x0 = (W - total) // 2 + (pitch - bw) // 2
+    body = '<line x1="%d" y1="118" x2="%d" y2="118" class="axis"/>' % (
+        (W - total) // 2, (W - total) // 2 + total)
+    for i, it in enumerate(items):
+        try:
+            v = min(1.0, max(0.05, float(it.get("value", 0.5))))
+        except (TypeError, ValueError):
+            v = 0.5
+        h = int(84 * v)
+        x = x0 + i * pitch
+        good = it.get("good")
+        cls = "barfill good" if good is True else ("barfill bad" if good is False else "barfill")
+        body += ('<rect x="%d" y="%d" width="%d" height="%d" rx="4" class="%s" '
+                 'style="transform-origin:%dpx 118px;animation-delay:%dms"/>'
+                 % (x, 118 - h, bw, h, cls, x + bw // 2, i * 140))
+        body += _txtml(x + bw // 2, 134, it.get("label", ""), maxch=12, lh=11)
+    return _svg(body, vb="0 0 %d 162" % W)
+
+
+def v_venn(params, c):
+    # два пересекающихся множества; подписи сторон — ПОД кругами
+    p = params or {}
+    body = ('<circle cx="120" cy="72" r="50" class="venn"/>'
+            '<circle cx="200" cy="72" r="50" class="venn b"/>'
+            + _txtml(96, 140, p.get("left", "A"), maxch=14, lh=11)
+            + _txtml(224, 140, p.get("right", "B"), maxch=14, lh=11)
+            + _txtml(160, 74, p.get("mid", ""), maxch=10, cls="lbl sm", lh=10))
+    return _svg(body, vb="0 0 320 168")
+
+
+def v_orbit(params, c):
+    # спутники вокруг ядра
+    import math
+    p = params or {}
+    center = p.get("center", "core")
+    sats = [str(x) for x in (p.get("sats") or p.get("labels") or ["a", "b", "c"]) if x][:5]
+    cy = 96
+    body = ('<circle cx="160" cy="96" r="48" class="orbitring"/>'
+            '<circle cx="160" cy="96" r="24" class="corehub"/>'
+            + _txtml(160, 100, center, maxch=8, lh=11))
+    n = max(len(sats), 1)
+    for i, t in enumerate(sats):
+        a = math.radians(-90 + i * 360.0 / n)
+        x, y = 160 + 48 * math.cos(a), cy + 48 * math.sin(a)
+        lx, ly = 160 + 74 * math.cos(a), cy + 74 * math.sin(a)
+        anchor = "middle" if abs(math.cos(a)) < 0.4 else ("start" if math.cos(a) > 0 else "end")
+        body += '<circle cx="%.1f" cy="%.1f" r="8" class="node" style="animation-delay:%dms"/>' % (x, y, i * 150)
+        body += _txtml(round(lx, 1), round(ly + 4, 1), t, maxch=14, anchor=anchor, lh=11)
+    return _svg(body, vb="0 0 320 190")
+
+
+def v_shield(params, c):
+    # ядро под концентрическими дугами защиты
+    p = params or {}
+    core = str(p.get("core", "core"))
+    rings = [str(x) for x in (p.get("rings") or p.get("labels") or ["guard"]) if x][:3]
+    cw = max(72, 7 * len(core) + 18)
+    body = ('<rect x="%d" y="112" width="%d" height="30" rx="7" class="box hot"/>' % (160 - cw // 2, cw)
+            + _txt(160, 132, core))
+    for i, t in enumerate(rings):
+        r = 58 + i * 26
+        body += ('<path d="M%d,128 A%d,%d 0 0 1 %d,128" class="shieldarc" '
+                 'style="animation-delay:%dms"/>' % (160 - r, r, r, 160 + r, i * 160))
+        body += _txt(160, 122 - r, t, cls="lbl sm")
+    return _svg(body, vb="0 0 320 150")
+
+
+def v_matrix2(params, c):
+    # квадрант 2×2; params.mark = 1..4 (TL, TR, BL, BR) ставит точку
+    p = params or {}
+    body = ('<rect x="70" y="24" width="180" height="104" rx="8" class="pane"/>'
+            '<line x1="160" y1="24" x2="160" y2="128" class="line2"/>'
+            '<line x1="70" y1="76" x2="250" y2="76" class="line2"/>')
+    mark = p.get("mark", 2)
+    mx = 115 if mark in (1, 3) else 205
+    my = 50 if mark in (1, 2) else 102
+    body += '<circle cx="%d" cy="%d" r="8" class="hit"/>' % (mx, my)
+    body += (_txtml(60, 54, p.get("y_high", ""), maxch=9, anchor="end", cls="lbl sm", lh=10)
+             + _txtml(60, 106, p.get("y_low", ""), maxch=9, anchor="end", cls="lbl sm", lh=10)
+             + _txtml(115, 144, p.get("x_left", ""), maxch=13, cls="lbl sm", lh=10)
+             + _txtml(205, 144, p.get("x_right", ""), maxch=13, cls="lbl sm", lh=10))
+    return _svg(body, vb="0 0 320 158")
+
+
+def v_loop_gate(params, c):
+    # цикл итераций, каждый оборот проходит через ворота-чекпойнт
+    p = params or {}
+    gate = str(p.get("gate", "verify"))
+    gw = max(64, 7 * len(gate) + 20)
+    body = ('<path d="M160,36 A48,48 0 1 1 159.9,36" class="loopring"/>'
+            '<path d="M120,52 l-4,12 l13,-4" class="arrhead"/>'
+            + '<rect x="%d" y="118" width="%d" height="28" rx="6" class="gatebox"/>' % (160 - gw // 2, gw)
+            + _txt(160, 137, gate)
+            + _txtml(160, 82, p.get("loop", "iterate"), maxch=12, lh=11))
+    return _svg(body, vb="0 0 320 152")
 
 
 VIZ = {
     "define": v_define, "layers": v_layers, "cycle": v_cycle, "steps": v_steps,
     "tug": v_tug, "two_targets": v_two_targets, "funnel": v_funnel,
     "timeline": v_timeline, "many_to_one": v_many_to_one, "split": v_split, "gauge": v_gauge,
+    "flow": v_flow, "stack": v_stack, "bars": v_bars, "venn": v_venn,
+    "orbit": v_orbit, "shield": v_shield, "matrix2": v_matrix2, "loop_gate": v_loop_gate,
 }
 
 
@@ -362,8 +596,8 @@ def render_visual(pdir, c):
     if fn:
         try:
             return fn(v.get("params"), c)
-        except Exception:
-            pass
+        except Exception as exc:  # диаграмма не должна ломать сборку — но и не молчать
+            return '<!-- viz error %s: %s -->%s' % (e(c.get("id", "?")), e(str(exc)), v_define(None, c))
     # fallback: нейтральная карточка с термином
     return v_define(None, c)
 
@@ -573,8 +807,8 @@ def render_qa(qa):
 # ---------- full page ----------
 
 CSS = """
-:root{--bg:#fbfaf7;--fg:#1c1a17;--mut:#6b6358;--card:#fff;--line:#e7e1d6;--acc:#c8501e;--acc2:#1e6fc8;--host:#1e6fc8;--guest:#c8501e}
-@media(prefers-color-scheme:dark){:root{--bg:#16140f;--fg:#ece7df;--mut:#9a9182;--card:#211e18;--line:#322d24;--acc:#e87242;--acc2:#5b9be8;--host:#5b9be8;--guest:#e87242}}
+:root{--bg:#fbfaf7;--fg:#1c1a17;--mut:#6b6358;--card:#fff;--line:#e7e1d6;--acc:#c8501e;--acc2:#1e6fc8;--host:#1e6fc8;--guest:#c8501e;--green:#3fae5a;--red:#e0533f;--gold:#e0a93f}
+@media(prefers-color-scheme:dark){:root{--bg:#16140f;--fg:#ece7df;--mut:#9a9182;--card:#211e18;--line:#322d24;--acc:#e87242;--acc2:#5b9be8;--host:#5b9be8;--guest:#e87242;--green:#57c974;--red:#ef7461;--gold:#eec163}}
 *{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--fg);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 .lang{display:none}html[lang=ru] .lang.ru{display:inline}html[lang=en] .lang.en{display:inline}
 .bar{display:flex;align-items:center;gap:18px;padding:12px 22px;border-bottom:1px solid var(--line);position:sticky;top:0;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(8px);z-index:9}
@@ -598,20 +832,18 @@ h2{font-size:23px;margin:34px 0 14px;padding-bottom:6px;border-bottom:1px solid 
 .sec-head{display:flex;align-items:baseline;gap:12px}.sec-head h2{border:none;margin-bottom:4px}
 .sec-dl{font-size:13px;color:var(--acc2);text-decoration:none;white-space:nowrap}
 .sec-intro{color:var(--mut);margin:0 0 16px}
-.concept{display:grid;grid-template-columns:170px 1fr;gap:18px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0}
-@media(max-width:620px){.concept{grid-template-columns:1fr}}
+.concept{display:grid;grid-template-columns:1fr;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0}
 .concept-viz{display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center}
-.viz,.v-img{width:100%;max-width:160px;height:auto}.v-img{border-radius:10px}
-.viz-cap{font-size:12px;color:var(--mut);text-align:center}
+.concept-viz>*{width:100%;max-width:480px}
+.viz,.v-img{width:100%;height:auto}.viz{max-width:440px}.v-img{max-width:min(640px,100%);border-radius:12px}
+.viz-cap{font-size:12.5px;color:var(--mut);text-align:center;max-width:640px}
 .concept-body h3{margin:.1em 0 .3em;font-size:19px}
 .tldr{margin:0 0 10px;padding:8px 12px;border-left:3px solid var(--acc);background:color-mix(in srgb,var(--acc) 7%,transparent);border-radius:0 8px 8px 0;font-weight:600;font-size:15px}
 .lead{margin:0 0 10px;font-size:14.5px}
 ul.kp{margin:0 0 10px;padding:0;list-style:none}
 ul.kp li{position:relative;padding-left:20px;margin:5px 0;font-size:14px}
 ul.kp li::before{content:"";position:absolute;left:4px;top:8px;width:6px;height:6px;border-radius:50%;background:var(--acc2)}
-.concept.has-img{grid-template-columns:1fr}
 .concept.has-img .concept-viz{width:100%}
-.concept.has-img .v-img{max-width:min(640px,100%);border-radius:12px}
 .who{font-size:12px;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:8px;vertical-align:middle}
 .who-host{background:color-mix(in srgb,var(--host) 18%,transparent);color:var(--host)}
 .who-guest{background:color-mix(in srgb,var(--guest) 18%,transparent);color:var(--guest)}
@@ -647,13 +879,49 @@ ul.kp li::before{content:"";position:absolute;left:4px;top:8px;width:6px;height:
 .v-layers{display:flex;flex-direction:column;gap:5px;width:100%}.v-layer{background:color-mix(in srgb,var(--acc2) calc(12% + var(--i)*7%),var(--card));border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:12px;text-align:center}
 .cyc-ring{fill:none;stroke:var(--acc2);stroke-width:3;opacity:.5}.cyc-n{fill:var(--acc2)}.cyc-t{fill:#fff;font-size:11px;text-anchor:middle;font-weight:700}.cyc-ah{fill:var(--acc2)}
 .v-steps{display:flex;flex-direction:column;gap:5px;width:100%}.v-step{display:flex;gap:8px;align-items:center;font-size:12px}.v-step-n{background:var(--acc);color:#fff;border-radius:50%;width:20px;height:20px;display:grid;place-items:center;font-size:11px;font-weight:700;flex:none}
-.v-tug{display:flex;align-items:center;gap:8px;width:100%;justify-content:center;font-size:12px}.v-tug-a,.v-tug-b{background:var(--card);border:1px solid var(--line);border-radius:7px;padding:5px 8px}.v-tug-a{border-color:var(--host)}.v-tug-b{border-color:var(--guest)}.v-tug-rope{color:var(--mut)}
+.v-tug{display:flex;align-items:center;gap:8px;width:100%;justify-content:center;font-size:13px}.v-tug-a,.v-tug-b{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:7px;padding:6px 9px;overflow-wrap:anywhere}.v-tug-a{border-color:var(--host)}.v-tug-b{border-color:var(--guest)}.v-tug-rope{color:var(--mut);flex:none}
 .v-two{display:flex;align-items:center;gap:6px;font-size:12px;justify-content:center}.v-two-old{background:color-mix(in srgb,var(--guest) 14%,var(--card));border-radius:7px;padding:5px 8px}.v-two-new{background:color-mix(in srgb,var(--host) 14%,var(--card));border-radius:7px;padding:5px 8px}.v-two-arrow{color:var(--mut)}
-.v-funnel{display:flex;flex-direction:column;gap:4px;align-items:center;width:100%}.v-funnel-r{width:var(--w);background:color-mix(in srgb,var(--acc) 22%,var(--card));border:1px solid var(--line);border-radius:6px;padding:5px;font-size:11px;text-align:center}
-.v-tl{position:relative;width:100%;display:flex;flex-direction:column;gap:13px;padding:4px 0 4px 2px}.v-tl:before{content:"";position:absolute;left:7px;top:10px;bottom:10px;width:3px;background:var(--line);border-radius:3px}.v-tl-row{display:flex;gap:10px;align-items:flex-start;position:relative}.v-tl-dot{flex:0 0 11px;width:11px;height:11px;border-radius:50%;background:var(--acc);margin-top:3px}.v-tl-l{font-size:11px;line-height:1.4;color:var(--mut);text-align:left;min-width:0;overflow-wrap:anywhere}
+.v-funnel{display:flex;flex-direction:column;gap:4px;align-items:center;width:100%}.v-funnel-r{width:var(--w);background:color-mix(in srgb,var(--acc) 22%,var(--card));border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:12.5px;text-align:center;overflow-wrap:anywhere}
+.v-tl{position:relative;width:100%;display:flex;flex-direction:column;gap:13px;padding:4px 0 4px 2px}.v-tl:before{content:"";position:absolute;left:7px;top:10px;bottom:10px;width:3px;background:var(--line);border-radius:3px}.v-tl-row{display:flex;gap:10px;align-items:flex-start;position:relative}.v-tl-dot{flex:0 0 11px;width:11px;height:11px;border-radius:50%;background:var(--acc);margin-top:3px}.v-tl-l{font-size:13px;line-height:1.45;color:var(--mut);text-align:left;min-width:0;overflow-wrap:anywhere}
 .m2o-l{stroke:var(--line);stroke-width:2}.m2o-s{fill:var(--acc2)}.m2o-hub{fill:var(--acc)}.m2o-t{fill:#fff;text-anchor:middle;font-size:13px;font-weight:700}
-.v-split{display:flex;gap:6px;width:100%}.v-split-c{flex:1;background:var(--card);border:1px solid var(--line);border-radius:7px;padding:6px;font-size:11px;text-align:center}
-.g-bg{fill:none;stroke:var(--line);stroke-width:8}.g-fg{fill:none;stroke:var(--acc);stroke-width:8}.g-hub{fill:var(--fg)}.g-needle{stroke:var(--fg);stroke-width:2}
+.v-split{display:flex;gap:8px;width:100%;align-items:stretch}.v-split-c{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;text-align:center;overflow-wrap:anywhere}
+.v-split-t{font-weight:700;font-size:13px;margin-bottom:4px}.v-split-c ul{margin:0;padding:0;list-style:none;text-align:left}.v-split-c li{position:relative;padding-left:14px;margin:4px 0}.v-split-c li:before{content:"";position:absolute;left:2px;top:8px;width:5px;height:5px;border-radius:50%;background:var(--mut)}
+.v-split-l{border-top:3px solid var(--host)}.v-split-r{border-top:3px solid var(--guest)}
+@media(max-width:520px){.v-split{flex-direction:column}}
+/* SVG diagram layer (общие классы новых компонентов) */
+.vz{display:block;margin:0 auto}
+.vz text{fill:var(--mut);font-size:11px;font-weight:600;font-family:inherit}
+.vz text.sm{font-size:9px}
+.vz .box{fill:color-mix(in srgb,var(--acc2) 16%,var(--card));stroke:var(--acc2);stroke-width:1.5}
+.vz .box.hot{fill:color-mix(in srgb,var(--acc2) 30%,var(--card));stroke:var(--acc2)}
+.vz .edge{stroke:color-mix(in srgb,var(--acc2) 45%,var(--card));stroke-width:1.4}
+.vz .arrowh{fill:var(--acc2)}
+.vz .axis{stroke:var(--line);stroke-width:1.6}
+.vz .node{fill:var(--acc2);stroke:var(--card);stroke-width:1.5}
+.vz .hit{fill:var(--acc)}
+.vz .line2{stroke:var(--mut);stroke-width:1.4}
+.vz .pane{fill:var(--card);stroke:var(--line);stroke-width:1.6}
+.vz .barfill{fill:color-mix(in srgb,var(--acc2) 55%,var(--card));animation:vzgrow .9s ease both}
+.vz .barfill.good{fill:color-mix(in srgb,var(--green) 65%,var(--card))}
+.vz .barfill.bad{fill:color-mix(in srgb,var(--red) 55%,var(--card))}
+.vz .venn{fill:color-mix(in srgb,var(--acc2) 14%,var(--card));stroke:var(--acc2);stroke-width:1.6;mix-blend-mode:multiply}
+.vz .venn.b{fill:color-mix(in srgb,var(--acc) 16%,var(--card));stroke:var(--acc)}
+@media(prefers-color-scheme:dark){.vz .venn{mix-blend-mode:screen}}
+.vz .orbitring{fill:none;stroke:var(--line);stroke-width:1.6;stroke-dasharray:5 4}
+.vz .corehub{fill:color-mix(in srgb,var(--acc2) 22%,var(--card));stroke:var(--acc2);stroke-width:1.6}
+.vz .shieldarc{fill:none;stroke:var(--acc);stroke-width:5;stroke-linecap:round;stroke-dasharray:300;stroke-dashoffset:300;animation:vzdraw 1.2s ease forwards}
+.vz .gatebox{fill:color-mix(in srgb,var(--gold) 26%,var(--card));stroke:var(--gold);stroke-width:1.6}
+.vz .loopring{fill:none;stroke:var(--line);stroke-width:2}
+.vz .loopdash{fill:none;stroke:var(--acc);stroke-width:2.6;stroke-linecap:round;stroke-dasharray:240;stroke-dashoffset:240;animation:vzdraw 1.6s ease forwards}
+.vz .arrhead{fill:none;stroke:var(--mut);stroke-width:1.6}
+.vz .gaugebg{fill:none;stroke:var(--line);stroke-width:10;stroke-linecap:round}
+.vz .gaugefill{fill:none;stroke:var(--acc);stroke-width:10;stroke-linecap:round;stroke-dasharray:400;stroke-dashoffset:400;animation:vzdraw 1.6s ease forwards}
+.vz .needle{stroke:var(--fg);stroke-width:3;stroke-linecap:round;transform-origin:160px 130px;animation:vzswing 2.8s ease-in-out infinite alternate}
+.vz .pivot{fill:var(--fg)}
+@keyframes vzdraw{to{stroke-dashoffset:0}}
+@keyframes vzgrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes vzswing{from{transform:rotate(-3deg)}to{transform:rotate(3deg)}}
+@media(prefers-reduced-motion:reduce){.vz *{animation:none!important}.vz .loopdash,.vz .gaugefill,.vz .shieldarc{stroke-dashoffset:0!important}.vz .barfill{transform:none!important}}
 
 /* Article mode — treaty dossier × distributed-systems diagram */
 body.article-mode{--bg:#f3efe6;--fg:#171512;--mut:#70685e;--card:#f3efe6;--line:#c9c0b1;--acc:#d3222a;--acc2:#171512;--host:#171512;--guest:#d3222a;background:#f3efe6;color:#171512;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
